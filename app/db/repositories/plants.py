@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -122,3 +122,25 @@ async def set_photo(session: AsyncSession, plant_id: int, file_id: str) -> None:
     if plant is not None:
         plant.photo_file_id = file_id
         await session.commit()
+
+
+async def get_plant(session: AsyncSession, plant_id: int) -> Plant | None:
+    return await session.get(Plant, plant_id)
+
+
+# Удаление — core-запросами: дочерние записи (комнаты, растения,
+# расписания, журнал) подчищает сама БД через ondelete=CASCADE
+
+async def delete_property(session: AsyncSession, property_id: int) -> None:
+    await session.execute(delete(Property).where(Property.id == property_id))
+    await session.commit()
+
+
+async def delete_room(session: AsyncSession, room_id: int) -> None:
+    await session.execute(delete(Room).where(Room.id == room_id))
+    await session.commit()
+
+
+async def delete_plant(session: AsyncSession, plant_id: int) -> None:
+    await session.execute(delete(Plant).where(Plant.id == plant_id))
+    await session.commit()

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,3 +22,17 @@ async def create_property(
         session, member.family.id, body.name.strip()
     )
     return {"id": prop.id, "name": prop.name}
+
+
+@router.delete("/properties/{property_id}")
+async def delete_property(
+    property_id: int,
+    member: Member = Depends(get_member),
+    session: AsyncSession = Depends(get_session),
+):
+    family_id = await plants_repo.property_family_id(session, property_id)
+    if family_id != member.family.id:
+        raise HTTPException(status_code=404, detail="property_not_found")
+
+    await plants_repo.delete_property(session, property_id)
+    return {"ok": True}

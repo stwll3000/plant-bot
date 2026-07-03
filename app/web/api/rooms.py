@@ -26,3 +26,17 @@ async def create_room(
 
     room = await plants_repo.create_room(session, body.property_id, body.name.strip())
     return {"id": room.id, "name": room.name}
+
+
+@router.delete("/rooms/{room_id}")
+async def delete_room(
+    room_id: int,
+    member: Member = Depends(get_member),
+    session: AsyncSession = Depends(get_session),
+):
+    family_id = await plants_repo.room_family_id(session, room_id)
+    if family_id != member.family.id:
+        raise HTTPException(status_code=404, detail="room_not_found")
+
+    await plants_repo.delete_room(session, room_id)
+    return {"ok": True}

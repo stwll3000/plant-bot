@@ -6,3 +6,4 @@ asyncpg>=0.30
 alembic>=1.14
 APScheduler>=3.10
 pydantic-settings>=2.6
+python-multipart>=0.0.12

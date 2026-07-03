@@ -1,12 +1,24 @@
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from aiogram.types import BufferedInputFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.repositories import plants as plants_repo
 from app.web.auth import validate_init_data
 from app.web.deps import Member, get_member, get_session
+
+MAX_PHOTO_SIZE = 10 * 1024 * 1024  # 10 МБ — лимит Telegram на sendPhoto
 
 router = APIRouter()
 
@@ -36,6 +48,53 @@ async def create_plant(
         body.interval_days,
     )
     return {"id": plant.id, "name": plant.name}
+
+
+@router.delete("/plants/{plant_id}")
+async def delete_plant(
+    plant_id: int,
+    member: Member = Depends(get_member),
+    session: AsyncSession = Depends(get_session),
+):
+    family_id = await plants_repo.plant_family_id(session, plant_id)
+    if family_id != member.family.id:
+        raise HTTPException(status_code=404, detail="plant_not_found")
+
+    await plants_repo.delete_plant(session, plant_id)
+    return {"ok": True}
+
+
+@router.post("/plants/{plant_id}/photo")
+async def upload_photo(
+    plant_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    member: Member = Depends(get_member),
+    session: AsyncSession = Depends(get_session),
+):
+    """Фото из Mini App: файл уходит ботом в чат пользователя —
+    так мы получаем telegram file_id и не держим своё хранилище."""
+    family_id = await plants_repo.plant_family_id(session, plant_id)
+    if family_id != member.family.id:
+        raise HTTPException(status_code=404, detail="plant_not_found")
+
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=415, detail="not_an_image")
+
+    data = await file.read()
+    if len(data) > MAX_PHOTO_SIZE:
+        raise HTTPException(status_code=413, detail="file_too_large")
+
+    plant = await plants_repo.get_plant(session, plant_id)
+    bot = request.app.state.bot
+    message = await bot.send_photo(
+        member.user.id,
+        BufferedInputFile(data, filename="plant.jpg"),
+        caption=f"Фото «{plant.name}» обновлено ✅",
+    )
+    file_id = message.photo[-1].file_id
+    await plants_repo.set_photo(session, plant_id, file_id)
+    return {"ok": True, "photo_file_id": file_id}
 
 
 @router.get("/photo/{file_id}")

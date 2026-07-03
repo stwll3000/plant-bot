@@ -10,14 +10,12 @@ let currentTab = "all";  // "all" | property_id | "log"
 // ---------- API ----------
 
 async function api(path, options = {}) {
-  const res = await fetch("/api" + path, {
-    ...options,
-    headers: {
-      "Authorization": AUTH,
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
+  const headers = { "Authorization": AUTH, ...(options.headers || {}) };
+  // Для FormData браузер сам выставит multipart-заголовок с boundary
+  if (!(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+  const res = await fetch("/api" + path, { ...options, headers });
   if (res.status === 403) {
     showError("Ты пока не состоишь в семье.\nОткрой чат с ботом и нажми /start, чтобы создать семью или присоединиться по коду.");
     throw new Error("no_family");
@@ -28,6 +26,13 @@ async function api(path, options = {}) {
   }
   if (!res.ok) throw new Error("api_error_" + res.status);
   return res.json();
+}
+
+function askConfirm(message) {
+  return new Promise((resolve) => {
+    if (tg.showConfirm) tg.showConfirm(message, resolve);
+    else resolve(window.confirm(message));
+  });
 }
 
 function showError(text) {
@@ -107,11 +112,26 @@ async function renderContent() {
       const header = document.createElement("div");
       header.className = "section-header";
       header.innerHTML = `<h2>${esc(room.name)}</h2>`;
+      const roomActions = document.createElement("div");
+      roomActions.className = "row-actions";
       const addPlantBtn = document.createElement("button");
       addPlantBtn.className = "btn secondary small";
       addPlantBtn.innerText = "+ растение";
       addPlantBtn.onclick = () => openAddPlant(room.id);
-      header.appendChild(addPlantBtn);
+      roomActions.appendChild(addPlantBtn);
+      const delRoomBtn = document.createElement("button");
+      delRoomBtn.className = "btn secondary small danger";
+      delRoomBtn.innerText = "🗑";
+      delRoomBtn.onclick = async () => {
+        const ok = await askConfirm(
+          `Удалить комнату «${room.name}»? Все растения в ней тоже удалятся.`
+        );
+        if (!ok) return;
+        await api(`/rooms/${room.id}`, { method: "DELETE" });
+        await load();
+      };
+      roomActions.appendChild(delRoomBtn);
+      header.appendChild(roomActions);
       content.appendChild(header);
 
       if (room.plants.length === 0) {
@@ -141,6 +161,20 @@ async function renderContent() {
         await load();
       });
       content.appendChild(addRoom);
+
+      const delProp = document.createElement("button");
+      delProp.className = "add-row danger";
+      delProp.innerText = "🗑 Удалить этот дом";
+      delProp.onclick = async () => {
+        const ok = await askConfirm(
+          `Удалить «${prop.name}» со всеми комнатами и растениями?`
+        );
+        if (!ok) return;
+        await api(`/properties/${prop.id}`, { method: "DELETE" });
+        currentTab = "all";
+        await load();
+      };
+      content.appendChild(delProp);
     }
   }
 }
@@ -175,6 +209,12 @@ function plantCard(plant) {
     </div>
   `;
 
+  // Тап по фото (или заглушке) — загрузка нового фото
+  const photoEl = card.querySelector(".plant-photo");
+  photoEl.style.cursor = "pointer";
+  photoEl.title = "Изменить фото";
+  photoEl.onclick = () => uploadPhoto(plant.id);
+
   const btn = document.createElement("button");
   btn.className = "water-btn" + (plant.due ? " due" : "");
   btn.innerText = "💧";
@@ -186,7 +226,39 @@ function plantCard(plant) {
     await load();
   };
   card.appendChild(btn);
+
+  const delBtn = document.createElement("button");
+  delBtn.className = "water-btn danger";
+  delBtn.innerText = "🗑";
+  delBtn.title = "Удалить растение";
+  delBtn.onclick = async () => {
+    const ok = await askConfirm(`Удалить «${plant.name}»? История полива тоже удалится.`);
+    if (!ok) return;
+    await api(`/plants/${plant.id}`, { method: "DELETE" });
+    await load();
+  };
+  card.appendChild(delBtn);
   return card;
+}
+
+function uploadPhoto(plantId) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      await api(`/plants/${plantId}/photo`, { method: "POST", body: formData });
+      if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    } catch (e) {
+      if (tg.showAlert) tg.showAlert("Не удалось загрузить фото 😕");
+    }
+    await load();
+  };
+  input.click();
 }
 
 async function renderLog(content) {
