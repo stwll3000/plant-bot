@@ -1,0 +1,177 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--tg-theme-bg-color, #f4f4f5);
+  color: var(--tg-theme-text-color, #222);
+  min-height: 100vh;
+}
+
+.hidden { display: none !important; }
+.muted { color: var(--tg-theme-hint-color, #999); font-size: 13px; }
+
+#app { max-width: 640px; margin: 0 auto; padding-bottom: 32px; }
+
+#header {
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#family-name { font-size: 20px; font-weight: 700; }
+
+/* Вкладки property */
+#tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 16px 12px;
+}
+.tab {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 16px;
+  border: none;
+  font-size: 14px;
+  background: var(--tg-theme-secondary-bg-color, #e8e8ea);
+  color: var(--tg-theme-text-color, #222);
+  cursor: pointer;
+}
+.tab.active {
+  background: var(--tg-theme-button-color, #3390ec);
+  color: var(--tg-theme-button-text-color, #fff);
+}
+
+#content { padding: 0 16px; }
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 18px 0 8px;
+}
+.section-header h2 { font-size: 16px; }
+
+/* Карточка растения */
+.plant-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--tg-theme-section-bg-color, #fff);
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.plant-photo {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--tg-theme-secondary-bg-color, #e8e8ea);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  flex-shrink: 0;
+}
+.plant-info { flex: 1; min-width: 0; }
+.plant-name { font-weight: 600; font-size: 15px; }
+.plant-status { font-size: 13px; margin-top: 2px; }
+.plant-status.due { color: #e53935; font-weight: 600; }
+.plant-status.ok { color: var(--tg-theme-hint-color, #999); }
+.plant-last { font-size: 12px; color: var(--tg-theme-hint-color, #999); margin-top: 2px; }
+
+.water-btn {
+  border: none;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 18px;
+  background: var(--tg-theme-secondary-bg-color, #e3f2fd);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.water-btn.due { background: var(--tg-theme-button-color, #3390ec); }
+
+/* Кнопки */
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.btn.primary {
+  background: var(--tg-theme-button-color, #3390ec);
+  color: var(--tg-theme-button-text-color, #fff);
+}
+.btn.secondary {
+  background: var(--tg-theme-secondary-bg-color, #e8e8ea);
+  color: var(--tg-theme-text-color, #222);
+}
+.btn.small { padding: 6px 12px; font-size: 13px; }
+
+.add-row {
+  width: 100%;
+  margin: 6px 0 14px;
+  padding: 12px;
+  border: 1.5px dashed var(--tg-theme-hint-color, #bbb);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--tg-theme-hint-color, #888);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* Журнал */
+.log-entry {
+  background: var(--tg-theme-section-bg-color, #fff);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+.log-entry .muted { margin-top: 2px; }
+
+/* Модальное окно */
+#modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 10;
+}
+#modal {
+  background: var(--tg-theme-bg-color, #fff);
+  border-radius: 16px 16px 0 0;
+  padding: 20px 16px 28px;
+  width: 100%;
+  max-width: 640px;
+}
+#modal h3 { margin-bottom: 14px; }
+#modal input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--tg-theme-hint-color, #ccc);
+  border-radius: 10px;
+  font-size: 15px;
+  background: var(--tg-theme-secondary-bg-color, #fafafa);
+  color: var(--tg-theme-text-color, #222);
+}
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.empty-hint {
+  text-align: center;
+  color: var(--tg-theme-hint-color, #999);
+  padding: 32px 16px;
+  font-size: 14px;
+}
+.big-emoji { font-size: 56px; text-align: center; margin: 48px 0 12px; }
+#error-screen p { text-align: center; padding: 0 32px; color: var(--tg-theme-hint-color, #888); }

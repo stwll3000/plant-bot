@@ -1,0 +1,124 @@
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.db.models import CareType, Plant, PlantCareSchedule, Property, Room
+
+
+async def create_property(
+    session: AsyncSession, family_id: int, name: str
+) -> Property:
+    prop = Property(family_id=family_id, name=name)
+    session.add(prop)
+    await session.commit()
+    return prop
+
+
+async def create_room(session: AsyncSession, property_id: int, name: str) -> Room:
+    room = Room(property_id=property_id, name=name)
+    session.add(room)
+    await session.commit()
+    return room
+
+
+async def create_plant(
+    session: AsyncSession,
+    room_id: int,
+    name: str,
+    species: str | None,
+    interval_days: int,
+) -> Plant:
+    plant = Plant(room_id=room_id, name=name, species=species)
+    session.add(plant)
+    await session.flush()
+
+    # Сразу заводим расписание полива; считаем, что растение полито сегодня
+    watering = await session.scalar(
+        select(CareType).where(CareType.code == "watering")
+    )
+    now = datetime.now(timezone.utc)
+    session.add(
+        PlantCareSchedule(
+            plant_id=plant.id,
+            care_type_id=watering.id,
+            interval_days=interval_days,
+            last_done_at=now,
+            next_due_at=now + timedelta(days=interval_days),
+        )
+    )
+    await session.commit()
+    return plant
+
+
+async def get_family_tree(session: AsyncSession, family_id: int) -> list[Property]:
+    """Вся иерархия семьи: property → rooms → plants → schedules."""
+    stmt = (
+        select(Property)
+        .where(Property.family_id == family_id)
+        .options(
+            selectinload(Property.rooms)
+            .selectinload(Room.plants)
+            .selectinload(Plant.schedules)
+            .selectinload(PlantCareSchedule.care_type)
+        )
+        .order_by(Property.id)
+    )
+    return list((await session.scalars(stmt)).all())
+
+
+async def get_plant_location(
+    session: AsyncSession, plant_id: int
+) -> tuple[Plant, Room, Property] | None:
+    stmt = (
+        select(Plant, Room, Property)
+        .join(Room, Plant.room_id == Room.id)
+        .join(Property, Room.property_id == Property.id)
+        .where(Plant.id == plant_id)
+    )
+    row = (await session.execute(stmt)).first()
+    return tuple(row) if row else None
+
+
+async def get_family_plants(session: AsyncSession, family_id: int) -> list[Plant]:
+    stmt = (
+        select(Plant)
+        .join(Room, Plant.room_id == Room.id)
+        .join(Property, Room.property_id == Property.id)
+        .where(Property.family_id == family_id)
+        .order_by(Plant.name)
+    )
+    return list((await session.scalars(stmt)).all())
+
+
+async def plant_family_id(session: AsyncSession, plant_id: int) -> int | None:
+    stmt = (
+        select(Property.family_id)
+        .join(Room, Room.property_id == Property.id)
+        .join(Plant, Plant.room_id == Room.id)
+        .where(Plant.id == plant_id)
+    )
+    return await session.scalar(stmt)
+
+
+async def property_family_id(session: AsyncSession, property_id: int) -> int | None:
+    return await session.scalar(
+        select(Property.family_id).where(Property.id == property_id)
+    )
+
+
+async def room_family_id(session: AsyncSession, room_id: int) -> int | None:
+    stmt = (
+        select(Property.family_id)
+        .join(Room, Room.property_id == Property.id)
+        .where(Room.id == room_id)
+    )
+    return await session.scalar(stmt)
+
+
+async def set_photo(session: AsyncSession, plant_id: int, file_id: str) -> None:
+    plant = await session.get(Plant, plant_id)
+    if plant is not None:
+        plant.photo_file_id = file_id
+        await session.commit()

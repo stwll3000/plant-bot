@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Семейный сад</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="header">
+      <div>
+        <div id="family-name">Загрузка…</div>
+        <div id="family-code" class="muted"></div>
+      </div>
+    </header>
+
+    <nav id="tabs"></nav>
+
+    <main id="content"></main>
+
+    <div id="error-screen" class="hidden">
+      <div class="big-emoji">🪴</div>
+      <p id="error-text"></p>
+    </div>
+  </div>
+
+  <!-- Модальное окно для форм добавления -->
+  <div id="modal-backdrop" class="hidden">
+    <div id="modal">
+      <h3 id="modal-title"></h3>
+      <div id="modal-fields"></div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="closeModal()">Отмена</button>
+        <button class="btn primary" id="modal-save">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
