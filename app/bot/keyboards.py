@@ -40,12 +40,16 @@ def main_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def water_kb(plant_id: int) -> InlineKeyboardMarkup:
+CARE_BUTTON_TEXT = {"watering": "💧 Полил(а)", "spraying": "💦 Опрыскал(а)"}
+
+
+def care_kb(plant_id: int, care_code: str) -> InlineKeyboardMarkup:
+    text = CARE_BUTTON_TEXT.get(care_code, "✅ Сделано")
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="💧 Полил(а)", callback_data=f"water:{plant_id}"
+                    text=text, callback_data=f"care:{care_code}:{plant_id}"
                 )
             ]
         ]

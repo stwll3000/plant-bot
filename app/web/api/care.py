@@ -15,11 +15,23 @@ async def water_plant(
     member: Member = Depends(get_member),
     session: AsyncSession = Depends(get_session),
 ):
+    return await mark_care(plant_id, "watering", member, session)
+
+
+@router.post("/plants/{plant_id}/care/{care_code}")
+async def mark_care(
+    plant_id: int,
+    care_code: str,
+    member: Member = Depends(get_member),
+    session: AsyncSession = Depends(get_session),
+):
     family_id = await plants_repo.plant_family_id(session, plant_id)
     if family_id != member.family.id:
         raise HTTPException(status_code=404, detail="plant_not_found")
 
-    await care_service.mark_done(session, plant_id, member.user.id)
+    result = await care_service.mark_done(session, plant_id, member.user.id, care_code)
+    if result is None:
+        raise HTTPException(status_code=404, detail="care_type_not_found")
     return {"ok": True}
 
 

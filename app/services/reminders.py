@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.repositories import care as care_repo
 from app.db.repositories import families as families_repo
 
-CARE_EMOJI = {"watering": "💧"}
+CARE_EMOJI = {"watering": "💧", "spraying": "💦"}
 
 
 def reminder_text(care_type_name: str, care_type_code: str, plant, room, prop) -> str:
@@ -17,7 +17,7 @@ def reminder_text(care_type_name: str, care_type_code: str, plant, room, prop) -
 
 
 async def collect_due_reminders(session: AsyncSession):
-    """Что пора сделать: [(schedule, текст, plant_id, family_member_ids)]."""
+    """Что пора сделать: [(schedule, текст, plant_id, care_code, member_ids)]."""
     now = datetime.now(timezone.utc)
     due = await care_repo.get_due_schedules(session, now)
 
@@ -30,6 +30,8 @@ async def collect_due_reminders(session: AsyncSession):
             members_cache[family_id] = [m.id for m in members]
 
         text = reminder_text(care_type.name, care_type.code, plant, room, prop)
-        reminders.append((schedule, text, plant.id, members_cache[family_id]))
+        reminders.append(
+            (schedule, text, plant.id, care_type.code, members_cache[family_id])
+        )
 
     return reminders

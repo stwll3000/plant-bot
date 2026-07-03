@@ -10,6 +10,7 @@ from app.db.repositories import care as care_repo
 from app.db.repositories import plants as plants_repo
 from app.services import care as care_service
 from app.services import onboarding
+from app.services.reminders import CARE_EMOJI
 
 router = Router()
 
@@ -18,21 +19,37 @@ class PhotoFlow(StatesGroup):
     waiting_plant_choice = State()
 
 
+CARE_DONE_WORD = {"watering": "Полил(а)", "spraying": "Опрыскал(а)"}
+
+
+@router.callback_query(F.data.startswith("care:"))
+async def care_from_chat(callback: CallbackQuery, session: AsyncSession):
+    _, care_code, plant_id = callback.data.split(":")
+    await _mark_from_chat(callback, session, int(plant_id), care_code)
+
+
 @router.callback_query(F.data.startswith("water:"))
 async def water_from_chat(callback: CallbackQuery, session: AsyncSession):
+    # Кнопки в старых напоминаниях, отправленных до появления care:
     plant_id = int(callback.data.split(":")[1])
+    await _mark_from_chat(callback, session, plant_id, "watering")
+
+
+async def _mark_from_chat(
+    callback: CallbackQuery, session: AsyncSession, plant_id: int, care_code: str
+):
     location = await care_service.mark_done(
-        session, plant_id, callback.from_user.id
+        session, plant_id, callback.from_user.id, care_code
     )
     if location is None:
         await callback.answer("Растение не найдено 😕", show_alert=True)
         return
 
-    plant, room, prop = location
-    await callback.answer("Записал! 💧")
+    done_word = CARE_DONE_WORD.get(care_code, "Сделано")
+    await callback.answer("Записал! ✅")
     await callback.message.edit_text(
         callback.message.html_text
-        + f"\n\n✅ Полил(а): {callback.from_user.first_name}",
+        + f"\n\n✅ {done_word}: {callback.from_user.first_name}",
         reply_markup=None,
     )
 
@@ -62,8 +79,9 @@ async def _send_log(message: Message, session: AsyncSession, user_id: int):
     lines = ["📖 <b>Последние записи:</b>\n"]
     for log, user, plant, room, prop, care_type in rows:
         when = log.done_at.strftime("%d.%m %H:%M")
+        emoji = CARE_EMOJI.get(care_type.code, "🪴")
         lines.append(
-            f"💧 {user.first_name} — <b>{plant.name}</b> "
+            f"{emoji} {user.first_name} — <b>{plant.name}</b> "
             f"({prop.name}, {room.name}) · {when}"
         )
     await message.answer("\n".join(lines))

@@ -31,11 +31,12 @@ async def get_schedule(
 
 async def latest_log_by_plant(
     session: AsyncSession, family_id: int
-) -> dict[int, tuple[User, datetime]]:
+) -> dict[int, tuple[User, datetime, str]]:
     """Последняя запись ухода по каждому растению семьи (DISTINCT ON)."""
     stmt = (
-        select(CareLog, User)
+        select(CareLog, User, CareType)
         .join(User, CareLog.user_id == User.id)
+        .join(CareType, CareLog.care_type_id == CareType.id)
         .join(Plant, CareLog.plant_id == Plant.id)
         .join(Room, Plant.room_id == Room.id)
         .join(Property, Room.property_id == Property.id)
@@ -44,7 +45,10 @@ async def latest_log_by_plant(
         .order_by(CareLog.plant_id, CareLog.done_at.desc())
     )
     rows = (await session.execute(stmt)).all()
-    return {log.plant_id: (user, log.done_at) for log, user in rows}
+    return {
+        log.plant_id: (user, log.done_at, care_type.code)
+        for log, user, care_type in rows
+    }
 
 
 async def recent_logs(session: AsyncSession, family_id: int, limit: int = 30):

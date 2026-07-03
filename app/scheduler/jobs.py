@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 
-from app.bot.keyboards import water_kb
+from app.bot.keyboards import care_kb
 from app.db.base import session_factory
 from app.services.reminders import collect_due_reminders
 
@@ -17,12 +17,12 @@ async def send_due_reminders(bot: Bot) -> None:
     async with session_factory() as session:
         reminders = await collect_due_reminders(session)
 
-        for schedule, text, plant_id, member_ids in reminders:
+        for schedule, text, plant_id, care_code, member_ids in reminders:
             delivered = False
             for user_id in member_ids:
                 try:
                     await bot.send_message(
-                        user_id, text, reply_markup=water_kb(plant_id)
+                        user_id, text, reply_markup=care_kb(plant_id, care_code)
                     )
                     delivered = True
                 except TelegramAPIError as e:

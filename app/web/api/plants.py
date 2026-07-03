@@ -28,6 +28,12 @@ class PlantIn(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     species: str | None = Field(default=None, max_length=128)
     interval_days: int = Field(ge=1, le=365)
+    spraying_days: int | None = Field(default=None, ge=1, le=365)
+
+
+class SchedulesIn(BaseModel):
+    watering_days: int = Field(ge=1, le=365)
+    spraying_days: int | None = Field(default=None, ge=1, le=365)
 
 
 @router.post("/plants")
@@ -46,8 +52,32 @@ async def create_plant(
         body.name.strip(),
         (body.species or "").strip() or None,
         body.interval_days,
+        body.spraying_days,
     )
     return {"id": plant.id, "name": plant.name}
+
+
+@router.put("/plants/{plant_id}/schedules")
+async def update_schedules(
+    plant_id: int,
+    body: SchedulesIn,
+    member: Member = Depends(get_member),
+    session: AsyncSession = Depends(get_session),
+):
+    """Интервалы ухода: полив обязателен, опрыскивание опционально
+    (None — выключить)."""
+    family_id = await plants_repo.plant_family_id(session, plant_id)
+    if family_id != member.family.id:
+        raise HTTPException(status_code=404, detail="plant_not_found")
+
+    await plants_repo.upsert_schedule(
+        session, plant_id, "watering", body.watering_days, commit=False
+    )
+    await plants_repo.upsert_schedule(
+        session, plant_id, "spraying", body.spraying_days, commit=False
+    )
+    await session.commit()
+    return {"ok": True}
 
 
 @router.delete("/plants/{plant_id}")

@@ -179,6 +179,19 @@ async function renderContent() {
   }
 }
 
+const CARE_UI = {
+  watering: { emoji: "💧", due: "Пора полить!", label: "Полив" },
+  spraying: { emoji: "💦", due: "Пора опрыскать!", label: "Опрыскивание" },
+};
+
+function careUi(code, name) {
+  return CARE_UI[code] || {
+    emoji: "🪴",
+    due: `Пора: ${(name || "").toLowerCase()}!`,
+    label: name || "",
+  };
+}
+
 function plantCard(plant) {
   const card = document.createElement("div");
   card.className = "plant-card";
@@ -187,25 +200,30 @@ function plantCard(plant) {
     ? `<img class="plant-photo" src="/api/photo/${plant.photo_file_id}?a=${encodeURIComponent(tg.initData)}" alt="">`
     : `<div class="plant-photo">🪴</div>`;
 
-  const statusClass = plant.due ? "due" : "ok";
-  const statusText = plant.due
-    ? "Пора полить!"
-    : plant.due_in_days === null
-      ? ""
-      : plant.due_in_days === 0
-        ? "Полить сегодня"
-        : `Полив через ${plant.due_in_days} ${plural(plant.due_in_days, "день", "дня", "дней")}`;
+  const care = plant.care || [];
+  const statusLines = care
+    .map((c) => {
+      const ui = careUi(c.code, c.name);
+      if (c.due) return `<div class="plant-status due">${ui.due}</div>`;
+      if (c.due_in_days === null) return "";
+      const text =
+        c.due_in_days === 0
+          ? `${ui.label} сегодня`
+          : `${ui.label} через ${c.due_in_days} ${plural(c.due_in_days, "день", "дня", "дней")}`;
+      return `<div class="plant-status ok">${text}</div>`;
+    })
+    .join("");
 
   const last = plant.last_care
-    ? `${esc(plant.last_care.by)}, ${ago(plant.last_care.at)}`
-    : "ещё не поливали";
+    ? `${careUi(plant.last_care.code, "").emoji} ${esc(plant.last_care.by)}, ${ago(plant.last_care.at)}`
+    : "🕐 ухода ещё не было";
 
   card.innerHTML = `
     ${photo}
-    <div class="plant-info">
+    <div class="plant-info" title="Настроить уход">
       <div class="plant-name">${esc(plant.name)}${plant.species ? ` <span class="muted">· ${esc(plant.species)}</span>` : ""}</div>
-      <div class="plant-status ${statusClass}">${statusText}</div>
-      <div class="plant-last">💧 ${last}</div>
+      ${statusLines}
+      <div class="plant-last">${last}</div>
     </div>
   `;
 
@@ -215,30 +233,72 @@ function plantCard(plant) {
   photoEl.title = "Изменить фото";
   photoEl.onclick = () => uploadPhoto(plant.id);
 
-  const btn = document.createElement("button");
-  btn.className = "water-btn" + (plant.due ? " due" : "");
-  btn.innerText = "💧";
-  btn.title = "Полил(а)";
-  btn.onclick = async () => {
-    btn.disabled = true;
-    await api(`/plants/${plant.id}/water`, { method: "POST" });
-    if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
-    await load();
-  };
-  card.appendChild(btn);
+  // Тап по названию — настройка интервалов ухода
+  const infoEl = card.querySelector(".plant-info");
+  infoEl.style.cursor = "pointer";
+  infoEl.onclick = () => openEditSchedules(plant);
+
+  const actions = document.createElement("div");
+  actions.className = "card-actions";
+
+  for (const c of care) {
+    const ui = careUi(c.code, c.name);
+    const btn = document.createElement("button");
+    btn.className = "water-btn" + (c.due ? " due" : "");
+    btn.innerText = ui.emoji;
+    btn.title = c.name;
+    btn.onclick = async () => {
+      btn.disabled = true;
+      await api(`/plants/${plant.id}/care/${c.code}`, { method: "POST" });
+      if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+      await load();
+    };
+    actions.appendChild(btn);
+  }
 
   const delBtn = document.createElement("button");
   delBtn.className = "water-btn danger";
   delBtn.innerText = "🗑";
   delBtn.title = "Удалить растение";
   delBtn.onclick = async () => {
-    const ok = await askConfirm(`Удалить «${plant.name}»? История полива тоже удалится.`);
+    const ok = await askConfirm(`Удалить «${plant.name}»? История ухода тоже удалится.`);
     if (!ok) return;
     await api(`/plants/${plant.id}`, { method: "DELETE" });
     await load();
   };
-  card.appendChild(delBtn);
+  actions.appendChild(delBtn);
+
+  card.appendChild(actions);
   return card;
+}
+
+function openEditSchedules(plant) {
+  const care = plant.care || [];
+  const watering = care.find((c) => c.code === "watering");
+  const spraying = care.find((c) => c.code === "spraying");
+  openModal(`Уход: ${plant.name}`, [
+    {
+      key: "watering_days",
+      placeholder: "Полив раз в … дней",
+      type: "number",
+      value: watering ? watering.interval_days : "",
+    },
+    {
+      key: "spraying_days",
+      placeholder: "Опрыскивание раз в … дней (пусто — не нужно)",
+      type: "number",
+      value: spraying ? spraying.interval_days : "",
+    },
+  ], async (values) => {
+    await api(`/plants/${plant.id}/schedules`, {
+      method: "PUT",
+      body: JSON.stringify({
+        watering_days: Number(values.watering_days) || 7,
+        spraying_days: Number(values.spraying_days) || null,
+      }),
+    });
+    await load();
+  });
 }
 
 function uploadPhoto(plantId) {
@@ -270,8 +330,9 @@ async function renderLog(content) {
   for (const entry of data.logs) {
     const div = document.createElement("div");
     div.className = "log-entry";
+    const emoji = careUi(entry.care_code, entry.care_type).emoji;
     div.innerHTML = `
-      💧 <b>${esc(entry.user)}</b> — ${esc(entry.plant)}
+      ${emoji} <b>${esc(entry.user)}</b> — ${esc(entry.plant)}
       <div class="muted">${esc(entry.property)} · ${esc(entry.room)} · ${fmtDate(entry.at)}</div>
     `;
     content.appendChild(div);
@@ -283,6 +344,7 @@ function openAddPlant(roomId) {
     { key: "name", placeholder: "Название, например: Монстера" },
     { key: "species", placeholder: "Вид (необязательно)" },
     { key: "interval_days", placeholder: "Полив раз в … дней (например: 7)", type: "number" },
+    { key: "spraying_days", placeholder: "Опрыскивание раз в … дней (необязательно)", type: "number" },
   ], async (values) => {
     await api("/plants", {
       method: "POST",
@@ -291,6 +353,7 @@ function openAddPlant(roomId) {
         name: values.name,
         species: values.species || null,
         interval_days: Number(values.interval_days) || 7,
+        spraying_days: Number(values.spraying_days) || null,
       }),
     });
     await load();
@@ -310,6 +373,7 @@ function openModal(title, fields, onSubmit) {
     input.id = "field-" + f.key;
     input.placeholder = f.placeholder;
     if (f.type) input.type = f.type;
+    if (f.value !== undefined && f.value !== "") input.value = f.value;
     box.appendChild(input);
   }
   modalSubmit = async () => {

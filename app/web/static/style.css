@@ -84,13 +84,14 @@ body {
 .water-btn {
   border: none;
   border-radius: 12px;
-  padding: 10px 12px;
-  font-size: 18px;
+  padding: 9px 10px;
+  font-size: 16px;
   background: var(--tg-theme-secondary-bg-color, #e3f2fd);
   cursor: pointer;
   flex-shrink: 0;
 }
 .water-btn.due { background: var(--tg-theme-button-color, #3390ec); }
+.card-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
 
 /* Кнопки */
 .btn {

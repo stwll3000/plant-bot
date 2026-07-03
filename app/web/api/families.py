@@ -21,31 +21,37 @@ async def get_state(
     now = datetime.now(timezone.utc)
 
     def plant_dict(plant):
-        watering = next(
-            (s for s in plant.schedules if s.care_type.code == "watering"), None
-        )
+        care = []
+        for schedule in plant.schedules:
+            if not schedule.enabled:
+                continue
+            due = False
+            due_in_days = None
+            if schedule.next_due_at:
+                delta = schedule.next_due_at - now
+                due = schedule.next_due_at <= now
+                due_in_days = 0 if due else delta.days
+            care.append(
+                {
+                    "code": schedule.care_type.code,
+                    "name": schedule.care_type.name,
+                    "interval_days": schedule.interval_days,
+                    "due": due,
+                    "due_in_days": due_in_days,
+                }
+            )
+        # Полив первым, остальное по алфавиту
+        care.sort(key=lambda c: (c["code"] != "watering", c["code"]))
+
         last = latest.get(plant.id)
-        due_in_days = None
-        due = False
-        if watering and watering.next_due_at:
-            delta = watering.next_due_at - now
-            due_in_days = delta.days if delta.total_seconds() > 0 else 0
-            due = watering.next_due_at <= now
         return {
             "id": plant.id,
             "name": plant.name,
             "species": plant.species,
             "photo_file_id": plant.photo_file_id,
-            "interval_days": watering.interval_days if watering else None,
-            "next_due_at": (
-                watering.next_due_at.isoformat()
-                if watering and watering.next_due_at
-                else None
-            ),
-            "due": due,
-            "due_in_days": due_in_days,
+            "care": care,
             "last_care": (
-                {"by": last[0].first_name, "at": last[1].isoformat()}
+                {"by": last[0].first_name, "at": last[1].isoformat(), "code": last[2]}
                 if last
                 else None
             ),

@@ -23,6 +23,8 @@ async def mark_done(
         return None
 
     care_type = await care_repo.get_care_type(session, care_type_code)
+    if care_type is None:
+        return None
     now = datetime.now(timezone.utc)
 
     session.add(

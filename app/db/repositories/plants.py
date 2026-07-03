@@ -29,27 +29,63 @@ async def create_plant(
     name: str,
     species: str | None,
     interval_days: int,
+    spraying_days: int | None = None,
 ) -> Plant:
     plant = Plant(room_id=room_id, name=name, species=species)
     session.add(plant)
     await session.flush()
 
-    # Сразу заводим расписание полива; считаем, что растение полито сегодня
-    watering = await session.scalar(
-        select(CareType).where(CareType.code == "watering")
-    )
-    now = datetime.now(timezone.utc)
-    session.add(
-        PlantCareSchedule(
-            plant_id=plant.id,
-            care_type_id=watering.id,
-            interval_days=interval_days,
-            last_done_at=now,
-            next_due_at=now + timedelta(days=interval_days),
-        )
-    )
+    # Сразу заводим расписания; считаем, что уход выполнен сегодня
+    await upsert_schedule(session, plant.id, "watering", interval_days, commit=False)
+    if spraying_days:
+        await upsert_schedule(session, plant.id, "spraying", spraying_days, commit=False)
     await session.commit()
     return plant
+
+
+async def upsert_schedule(
+    session: AsyncSession,
+    plant_id: int,
+    care_code: str,
+    interval_days: int | None,
+    commit: bool = True,
+) -> None:
+    """Создать/обновить расписание ухода. interval_days=None — выключить."""
+    care_type = await session.scalar(
+        select(CareType).where(CareType.code == care_code)
+    )
+    if care_type is None:
+        return
+
+    schedule = await session.scalar(
+        select(PlantCareSchedule).where(
+            PlantCareSchedule.plant_id == plant_id,
+            PlantCareSchedule.care_type_id == care_type.id,
+        )
+    )
+    now = datetime.now(timezone.utc)
+
+    if interval_days is None:
+        if schedule is not None:
+            schedule.enabled = False
+    elif schedule is not None:
+        schedule.interval_days = interval_days
+        schedule.enabled = True
+        schedule.next_due_at = (schedule.last_done_at or now) + timedelta(
+            days=interval_days
+        )
+    else:
+        session.add(
+            PlantCareSchedule(
+                plant_id=plant_id,
+                care_type_id=care_type.id,
+                interval_days=interval_days,
+                last_done_at=now,
+                next_due_at=now + timedelta(days=interval_days),
+            )
+        )
+    if commit:
+        await session.commit()
 
 
 async def get_family_tree(session: AsyncSession, family_id: int) -> list[Property]:
