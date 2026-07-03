@@ -279,7 +279,7 @@ function openEditSchedules(plant) {
   openModal(`Уход: ${plant.name}`, [
     {
       key: "watering_days",
-      placeholder: "Полив раз в … дней",
+      placeholder: "Полив раз в … дней (можно дробно: 2.5)",
       type: "number",
       value: watering ? watering.interval_days : "",
     },
@@ -293,8 +293,8 @@ function openEditSchedules(plant) {
     await api(`/plants/${plant.id}/schedules`, {
       method: "PUT",
       body: JSON.stringify({
-        watering_days: Number(values.watering_days) || 7,
-        spraying_days: Number(values.spraying_days) || null,
+        watering_days: parseInterval(values.watering_days) || 7,
+        spraying_days: parseInterval(values.spraying_days),
       }),
     });
     await load();
@@ -343,7 +343,7 @@ function openAddPlant(roomId) {
   openModal("Новое растение", [
     { key: "name", placeholder: "Название, например: Монстера" },
     { key: "species", placeholder: "Вид (необязательно)" },
-    { key: "interval_days", placeholder: "Полив раз в … дней (например: 7)", type: "number" },
+    { key: "interval_days", placeholder: "Полив раз в … дней (можно дробно: 2.5)", type: "number" },
     { key: "spraying_days", placeholder: "Опрыскивание раз в … дней (необязательно)", type: "number" },
   ], async (values) => {
     await api("/plants", {
@@ -352,8 +352,8 @@ function openAddPlant(roomId) {
         room_id: roomId,
         name: values.name,
         species: values.species || null,
-        interval_days: Number(values.interval_days) || 7,
-        spraying_days: Number(values.spraying_days) || null,
+        interval_days: parseInterval(values.interval_days) || 7,
+        spraying_days: parseInterval(values.spraying_days),
       }),
     });
     await load();
@@ -372,7 +372,13 @@ function openModal(title, fields, onSubmit) {
     const input = document.createElement("input");
     input.id = "field-" + f.key;
     input.placeholder = f.placeholder;
-    if (f.type) input.type = f.type;
+    if (f.type === "number") {
+      // text + decimal: мобильная клавиатура с точкой/запятой
+      input.type = "text";
+      input.inputMode = "decimal";
+    } else if (f.type) {
+      input.type = f.type;
+    }
     if (f.value !== undefined && f.value !== "") input.value = f.value;
     box.appendChild(input);
   }
@@ -404,6 +410,12 @@ function esc(s) {
   const div = document.createElement("div");
   div.innerText = s ?? "";
   return div.innerHTML;
+}
+
+// «2,3» и «2.3» — оба варианта считаются дробным интервалом
+function parseInterval(value) {
+  const n = parseFloat(String(value ?? "").replace(",", "."));
+  return isNaN(n) || n <= 0 ? null : n;
 }
 
 function plural(n, one, few, many) {

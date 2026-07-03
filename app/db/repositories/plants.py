@@ -28,8 +28,8 @@ async def create_plant(
     room_id: int,
     name: str,
     species: str | None,
-    interval_days: int,
-    spraying_days: int | None = None,
+    interval_days: float,
+    spraying_days: float | None = None,
 ) -> Plant:
     plant = Plant(room_id=room_id, name=name, species=species)
     session.add(plant)
@@ -47,7 +47,7 @@ async def upsert_schedule(
     session: AsyncSession,
     plant_id: int,
     care_code: str,
-    interval_days: int | None,
+    interval_days: float | None,
     commit: bool = True,
 ) -> None:
     """Создать/обновить расписание ухода. interval_days=None — выключить."""

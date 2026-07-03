@@ -27,13 +27,13 @@ class PlantIn(BaseModel):
     room_id: int
     name: str = Field(min_length=1, max_length=128)
     species: str | None = Field(default=None, max_length=128)
-    interval_days: int = Field(ge=1, le=365)
-    spraying_days: int | None = Field(default=None, ge=1, le=365)
+    interval_days: float = Field(ge=0.25, le=365)
+    spraying_days: float | None = Field(default=None, ge=0.25, le=365)
 
 
 class SchedulesIn(BaseModel):
-    watering_days: int = Field(ge=1, le=365)
-    spraying_days: int | None = Field(default=None, ge=1, le=365)
+    watering_days: float = Field(ge=0.25, le=365)
+    spraying_days: float | None = Field(default=None, ge=0.25, le=365)
 
 
 @router.post("/plants")

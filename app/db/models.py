@@ -4,6 +4,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -137,7 +138,8 @@ class PlantCareSchedule(Base):
     care_type_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("care_types.id", ondelete="CASCADE")
     )
-    interval_days: Mapped[int] = mapped_column(Integer)
+    # Дробное: 2.33 = примерно 3 раза в неделю
+    interval_days: Mapped[float] = mapped_column(Float)
     last_done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     next_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
